@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment / secrets
+.env
+.env.*
+
+# Instagram session tokens
+.ig_session.json
+
+# Claude Code settings (may contain secrets from past tool calls)
+.claude/
+
+# Browser session data (may contain auth tokens)
+.browser_session/
+
+# macOS
+.DS_Store
