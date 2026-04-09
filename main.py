@@ -1,4 +1,8 @@
+import argparse
 import sys
+from pathlib import Path
+
+EXPORTS_DIR = Path(__file__).parent / "exports"
 
 from rich.console import Console
 from rich.panel import Panel
@@ -9,7 +13,7 @@ from models import AnalysisResult, IGPost, Sentiment, SENTIMENT_COLORS
 from ig_client import fetch_post
 from summariser import analyse_post
 
-console = Console()
+console: Console
 
 
 def display_results(post: IGPost, analysis: AnalysisResult) -> None:
@@ -99,18 +103,18 @@ def _print_bar(label: str, count: int, total: int, width: int, colour: str) -> N
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        console.print("[bold red]Usage:[/] python main.py <instagram_post_url>")
-        console.print()
-        console.print("Example:")
-        console.print("  python main.py https://www.instagram.com/p/ABC123/")
-        sys.exit(1)
+    global console
 
-    url = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Summarise an Instagram post's comments.")
+    parser.add_argument("url", help="Instagram post URL")
+    parser.add_argument("--export", action="store_true", help="Export results to an SVG file")
+    args = parser.parse_args()
+
+    console = Console(record=args.export)
 
     try:
         with console.status("[bold green]Logging in and fetching Instagram post..."):
-            post = fetch_post(url)
+            post = fetch_post(args.url)
         console.print(
             f"[green]Fetched {len(post.comments)} comments from @{post.author}[/green]"
         )
@@ -119,6 +123,12 @@ def main() -> None:
             analysis = analyse_post(post)
 
         display_results(post, analysis)
+
+        if args.export:
+            EXPORTS_DIR.mkdir(exist_ok=True)
+            filepath = EXPORTS_DIR / f"ig_{post.shortcode}.svg"
+            filepath.write_text(console.export_svg(title=f"@{post.author}"), encoding="utf-8")
+            console.print(f"[dim]Exported to {filepath}[/dim]")
 
     except ValueError as e:
         console.print(f"[bold red]Invalid URL or post not found:[/] {e}")

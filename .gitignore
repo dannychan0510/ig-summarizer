@@ -20,5 +20,8 @@ build/
 # Browser session data (may contain auth tokens)
 .browser_session/
 
+# Exports
+exports/
+
 # macOS
 .DS_Store
