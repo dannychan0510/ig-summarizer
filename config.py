@@ -19,14 +19,19 @@ MAX_COMMENTS_FOR_ANALYSIS = int(os.getenv("MAX_COMMENTS_FOR_ANALYSIS", "100"))
 # Instagram session ID cookie from your browser.
 # How to get it: Instagram.com → DevTools (F12) → Application → Cookies
 #   → www.instagram.com → copy the value of 'sessionid'
+# Only required when analysing Instagram posts.
 IG_SESSION_ID = os.getenv("IG_SESSION_ID")
 
-if not IG_SESSION_ID:
-    raise SystemExit(
-        "Error: IG_SESSION_ID environment variable must be set.\n"
-        "Get it from your browser:\n"
-        "  1. Open Instagram.com and log in\n"
-        "  2. Open DevTools (F12) → Application → Cookies → www.instagram.com\n"
-        "  3. Copy the value of 'sessionid'\n"
-        "  4. export IG_SESSION_ID='paste-value-here'"
-    )
+
+def require_ig_session_id() -> str:
+    """Return IG_SESSION_ID or exit with a helpful message if unset."""
+    if not IG_SESSION_ID:
+        raise SystemExit(
+            "Error: IG_SESSION_ID environment variable must be set.\n"
+            "Get it from your browser:\n"
+            "  1. Open Instagram.com and log in\n"
+            "  2. Open DevTools (F12) → Application → Cookies → www.instagram.com\n"
+            "  3. Copy the value of 'sessionid'\n"
+            "  4. export IG_SESSION_ID='paste-value-here'"
+        )
+    return IG_SESSION_ID

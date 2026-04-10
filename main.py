@@ -9,23 +9,33 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from models import AnalysisResult, IGPost, Sentiment, SENTIMENT_COLORS
-from ig_client import fetch_post
-from summariser import analyse_post
+from models import AnalysisResult, IGPost, RedditPost, Sentiment, SENTIMENT_COLORS
+import ig_client
+import reddit_client
+from summariser import analyse_post, analyse_reddit_post
 
 console: Console
 
 
-def display_results(post: IGPost, analysis: AnalysisResult) -> None:
+def display_ig_results(post: IGPost, analysis: AnalysisResult) -> None:
     console.print()
-    _display_header(post)
+    _display_ig_header(post)
     _display_summary(analysis.summary)
     _display_themes(analysis.themes)
     _display_sentiment(analysis.commenter_sentiments)
     console.print()
 
 
-def _display_header(post: IGPost) -> None:
+def display_reddit_results(post: RedditPost, analysis: AnalysisResult) -> None:
+    console.print()
+    _display_reddit_header(post)
+    _display_summary(analysis.summary)
+    _display_themes(analysis.themes)
+    _display_sentiment(analysis.commenter_sentiments)
+    console.print()
+
+
+def _display_ig_header(post: IGPost) -> None:
     subtitle = f"@{post.author}  |  {post.like_count:,} likes  |  {post.comment_count:,} comments"
 
     caption_preview = post.caption[:200].replace("\n", " ") if post.caption else "(no caption)"
@@ -33,6 +43,16 @@ def _display_header(post: IGPost) -> None:
         caption_preview += "…"
 
     console.print(Panel(caption_preview, title="Instagram Post", subtitle=subtitle, border_style="cyan"))
+
+
+def _display_reddit_header(post: RedditPost) -> None:
+    subtitle = f"u/{post.author}  |  r/{post.subreddit}  |  {post.score:,} upvotes  |  {post.num_comments:,} comments"
+
+    body_preview = post.selftext[:200].replace("\n", " ") if post.selftext else "(link post / no body)"
+    if len(post.selftext or "") > 200:
+        body_preview += "…"
+
+    console.print(Panel(body_preview, title=post.title, subtitle=subtitle, border_style="orange3"))
 
 
 def _display_summary(summary: str) -> None:
@@ -102,33 +122,56 @@ def _print_bar(label: str, count: int, total: int, width: int, colour: str) -> N
     )
 
 
+def _is_reddit_url(url: str) -> bool:
+    return "reddit.com/" in url
+
+
 def main() -> None:
     global console
 
-    parser = argparse.ArgumentParser(description="Summarise an Instagram post's comments.")
-    parser.add_argument("url", help="Instagram post URL")
+    parser = argparse.ArgumentParser(description="Summarise comments on an Instagram or Reddit post.")
+    parser.add_argument("url", help="Instagram or Reddit post URL")
     parser.add_argument("--export", action="store_true", help="Export results to an SVG file")
     args = parser.parse_args()
 
     console = Console(record=args.export)
 
     try:
-        with console.status("[bold green]Logging in and fetching Instagram post..."):
-            post = fetch_post(args.url)
-        console.print(
-            f"[green]Fetched {len(post.comments)} comments from @{post.author}[/green]"
-        )
+        if _is_reddit_url(args.url):
+            with console.status("[bold green]Fetching Reddit post..."):
+                post = reddit_client.fetch_post(args.url)
+            console.print(
+                f"[green]Fetched {len(post.comments)} comments from r/{post.subreddit}[/green]"
+            )
 
-        with console.status("[bold green]Analysing with Gemini..."):
-            analysis = analyse_post(post)
+            with console.status("[bold green]Analysing with Gemini..."):
+                analysis = analyse_reddit_post(post)
 
-        display_results(post, analysis)
+            display_reddit_results(post, analysis)
 
-        if args.export:
-            EXPORTS_DIR.mkdir(exist_ok=True)
-            filepath = EXPORTS_DIR / f"ig_{post.shortcode}.svg"
-            filepath.write_text(console.export_svg(title=f"@{post.author}"), encoding="utf-8")
-            console.print(f"[dim]Exported to {filepath}[/dim]")
+            if args.export:
+                EXPORTS_DIR.mkdir(exist_ok=True)
+                filepath = EXPORTS_DIR / f"reddit_{post.post_id}.svg"
+                filepath.write_text(console.export_svg(title=post.title), encoding="utf-8")
+                console.print(f"[dim]Exported to {filepath}[/dim]")
+
+        else:
+            with console.status("[bold green]Logging in and fetching Instagram post..."):
+                post = ig_client.fetch_post(args.url)
+            console.print(
+                f"[green]Fetched {len(post.comments)} comments from @{post.author}[/green]"
+            )
+
+            with console.status("[bold green]Analysing with Gemini..."):
+                analysis = analyse_post(post)
+
+            display_ig_results(post, analysis)
+
+            if args.export:
+                EXPORTS_DIR.mkdir(exist_ok=True)
+                filepath = EXPORTS_DIR / f"ig_{post.shortcode}.svg"
+                filepath.write_text(console.export_svg(title=f"@{post.author}"), encoding="utf-8")
+                console.print(f"[dim]Exported to {filepath}[/dim]")
 
     except ValueError as e:
         console.print(f"[bold red]Invalid URL or post not found:[/] {e}")

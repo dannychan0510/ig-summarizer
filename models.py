@@ -29,6 +29,29 @@ class IGPost(BaseModel):
     comments: list[IGComment]
 
 
+class RedditComment(BaseModel):
+    """A single Reddit comment or reply."""
+
+    author: str
+    text: str
+    score: int
+    comment_id: str
+
+
+class RedditPost(BaseModel):
+    """Fetched Reddit post with its comments."""
+
+    url: str
+    post_id: str
+    title: str
+    selftext: str
+    author: str
+    score: int
+    num_comments: int
+    subreddit: str
+    comments: list[RedditComment]
+
+
 # ---------- Gemini response schema ----------
 
 

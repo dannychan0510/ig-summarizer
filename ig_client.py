@@ -27,7 +27,7 @@ def _build_loader() -> instaloader.Instaloader:
 
     # Inject the session cookie from the user's real browser
     L.context._session.cookies.set(
-        "sessionid", config.IG_SESSION_ID, domain=".instagram.com"
+        "sessionid", config.require_ig_session_id(), domain=".instagram.com"
     )
 
     # Grab a CSRF token by hitting instagram.com (needed for API calls)
