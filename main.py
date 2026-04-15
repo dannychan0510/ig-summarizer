@@ -16,22 +16,30 @@ from summariser import analyse_post, analyse_reddit_post
 
 console: Console
 
+_CAMP_COLORS = ["cyan", "yellow", "magenta", "blue", "red"]
 
-def display_ig_results(post: IGPost, analysis: AnalysisResult) -> None:
+
+def display_ig_results(post: IGPost, analysis: AnalysisResult, mode: str) -> None:
     console.print()
     _display_ig_header(post)
     _display_summary(analysis.summary)
     _display_themes(analysis.themes)
-    _display_sentiment(analysis.commenter_sentiments)
+    if mode in ("both", "camps"):
+        _display_camps(analysis.camps, analysis.commenter_sentiments)
+        _display_camp_bars(analysis.camps, analysis.commenter_sentiments)
+    _display_sentiment(analysis.commenter_sentiments, show_stance=mode in ("both", "camps"), show_bars=mode == "both" or mode == "sentiment")
     console.print()
 
 
-def display_reddit_results(post: RedditPost, analysis: AnalysisResult) -> None:
+def display_reddit_results(post: RedditPost, analysis: AnalysisResult, mode: str) -> None:
     console.print()
     _display_reddit_header(post)
     _display_summary(analysis.summary)
     _display_themes(analysis.themes)
-    _display_sentiment(analysis.commenter_sentiments)
+    if mode in ("both", "camps"):
+        _display_camps(analysis.camps, analysis.commenter_sentiments)
+        _display_camp_bars(analysis.camps, analysis.commenter_sentiments)
+    _display_sentiment(analysis.commenter_sentiments, show_stance=mode in ("both", "camps"), show_bars=mode == "both" or mode == "sentiment")
     console.print()
 
 
@@ -73,30 +81,87 @@ def _display_themes(themes: list) -> None:
     console.print(table)
 
 
-def _display_sentiment(sentiments: list) -> None:
+def _display_camps(camps: list, sentiments: list) -> None:
+    if not camps:
+        return
+
+    tally: dict[str, int] = {c.label: 0 for c in camps}
+    for s in sentiments:
+        if s.stance and s.stance in tally:
+            tally[s.stance] += 1
+
+    table = Table(title="Viewpoint Breakdown", show_lines=True, border_style="blue")
+    table.add_column("Camp", style="bold", min_width=20)
+    table.add_column("Position", ratio=2)
+    table.add_column("Commenters", justify="right")
+
+    for i, camp in enumerate(camps):
+        colour = _CAMP_COLORS[i % len(_CAMP_COLORS)]
+        table.add_row(
+            Text(camp.label, style=f"bold {colour}"),
+            camp.description,
+            str(tally[camp.label]),
+        )
+
+    console.print(table)
+
+
+def _display_camp_bars(camps: list, sentiments: list) -> None:
+    if not camps:
+        return
+
+    tally: dict[str, int] = {c.label: 0 for c in camps}
+    for s in sentiments:
+        if s.stance and s.stance in tally:
+            tally[s.stance] += 1
+
+    total = sum(tally.values())
+    if total == 0:
+        return
+
+    console.print()
+    console.print("[bold]Viewpoint Distribution[/bold]")
+    console.print()
+
+    label_width = max(len(c.label) for c in camps)
+    bar_width = 30
+    for i, camp in enumerate(camps):
+        colour = _CAMP_COLORS[i % len(_CAMP_COLORS)]
+        _print_bar(camp.label, tally[camp.label], total, bar_width, colour, label_width)
+
+    console.print()
+
+
+def _display_sentiment(sentiments: list, show_stance: bool = False, show_bars: bool = True) -> None:
     total = len(sentiments)
     if total == 0:
         console.print("[dim]No commenter sentiments to display.[/dim]")
         return
 
-    positive = sum(1 for s in sentiments if s.sentiment == Sentiment.POSITIVE)
-    negative = sum(1 for s in sentiments if s.sentiment == Sentiment.NEGATIVE)
-    neutral = sum(1 for s in sentiments if s.sentiment == Sentiment.NEUTRAL)
+    if show_bars:
+        positive = sum(1 for s in sentiments if s.sentiment == Sentiment.POSITIVE)
+        negative = sum(1 for s in sentiments if s.sentiment == Sentiment.NEGATIVE)
+        neutral = sum(1 for s in sentiments if s.sentiment == Sentiment.NEUTRAL)
 
-    console.print()
-    console.print("[bold]Sentiment Breakdown[/bold]")
-    console.print()
+        console.print()
+        console.print("[bold]Sentiment Breakdown[/bold]")
+        console.print()
 
-    bar_width = 30
-    _print_bar("Positive", positive, total, bar_width, SENTIMENT_COLORS[Sentiment.POSITIVE])
-    _print_bar("Negative", negative, total, bar_width, SENTIMENT_COLORS[Sentiment.NEGATIVE])
-    _print_bar("Neutral", neutral, total, bar_width, SENTIMENT_COLORS[Sentiment.NEUTRAL])
+        bar_width = 30
+        label_width = len("Negative")  # longest of the three
+        _print_bar("Positive", positive, total, bar_width, SENTIMENT_COLORS[Sentiment.POSITIVE], label_width)
+        _print_bar("Negative", negative, total, bar_width, SENTIMENT_COLORS[Sentiment.NEGATIVE], label_width)
+        _print_bar("Neutral", neutral, total, bar_width, SENTIMENT_COLORS[Sentiment.NEUTRAL], label_width)
 
-    console.print()
+        console.print()
+
+    has_stances = show_stance and any(s.stance for s in sentiments)
 
     table = Table(title="Per-Commenter Sentiment", show_lines=True)
     table.add_column("Author", style="bold")
     table.add_column("Sentiment")
+    if has_stances:
+        table.add_column("Stance")
     table.add_column("Reason", ratio=2)
 
     sentiment_order = {Sentiment.POSITIVE: 0, Sentiment.NEGATIVE: 1, Sentiment.NEUTRAL: 2}
@@ -104,21 +169,24 @@ def _display_sentiment(sentiments: list) -> None:
 
     for s in sorted_sentiments:
         colour = SENTIMENT_COLORS[s.sentiment]
-        table.add_row(
+        row = [
             f"@{s.author}",
             Text(s.sentiment.value.upper(), style=f"bold {colour}"),
-            s.reason,
-        )
+        ]
+        if has_stances:
+            row.append(s.stance or "—")
+        row.append(s.reason)
+        table.add_row(*row)
 
     console.print(table)
 
 
-def _print_bar(label: str, count: int, total: int, width: int, colour: str) -> None:
+def _print_bar(label: str, count: int, total: int, width: int, colour: str, label_width: int = 12) -> None:
     pct = (count / total * 100) if total > 0 else 0
     filled = int(width * count / total) if total > 0 else 0
     bar = "\u2588" * filled + "\u2591" * (width - filled)
     console.print(
-        f"  [{colour}]{label:>8}[/]: {count:>3} ({pct:>5.1f}%)  [{colour}]{bar}[/]"
+        f"  [{colour}]{label:>{label_width}}[/]: {count:>3} ({pct:>5.1f}%)  [{colour}]{bar}[/]"
     )
 
 
@@ -132,6 +200,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Summarise comments on an Instagram or Reddit post.")
     parser.add_argument("url", help="Instagram or Reddit post URL")
     parser.add_argument("--export", action="store_true", help="Export results to an SVG file")
+    parser.add_argument(
+        "--analysis",
+        choices=["both", "sentiment", "camps"],
+        default="both",
+        help="Analysis mode: 'both' (default), 'sentiment' only, or 'camps' only",
+    )
     args = parser.parse_args()
 
     console = Console(record=args.export)
@@ -145,9 +219,9 @@ def main() -> None:
             )
 
             with console.status("[bold green]Analysing with Gemini..."):
-                analysis = analyse_reddit_post(post)
+                analysis = analyse_reddit_post(post, args.analysis)
 
-            display_reddit_results(post, analysis)
+            display_reddit_results(post, analysis, args.analysis)
 
             if args.export:
                 EXPORTS_DIR.mkdir(exist_ok=True)
@@ -163,9 +237,9 @@ def main() -> None:
             )
 
             with console.status("[bold green]Analysing with Gemini..."):
-                analysis = analyse_post(post)
+                analysis = analyse_post(post, args.analysis)
 
-            display_ig_results(post, analysis)
+            display_ig_results(post, analysis, args.analysis)
 
             if args.export:
                 EXPORTS_DIR.mkdir(exist_ok=True)

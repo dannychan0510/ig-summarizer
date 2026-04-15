@@ -37,7 +37,7 @@ def _truncate_to_char_limit(comments: list[IGComment]) -> tuple[list[IGComment],
     return kept, False
 
 
-def _build_prompt(post: IGPost) -> str:
+def _build_prompt(post: IGPost, mode: str = "both") -> str:
     """Build the Gemini analysis prompt from post data."""
     sampled = _sample_comments(post.comments)
     sampled, was_truncated = _truncate_to_char_limit(sampled)
@@ -72,10 +72,25 @@ Caption:
 Based on the comments above:
 1. Write a 3-5 sentence summary of what people are saying overall.
 2. Identify 2-5 recurring themes or topics across the comments.
-3. For EVERY SINGLE commenter listed above, classify their sentiment as positive, negative, or neutral with a brief reason. Do not skip anyone — analyse all {len(sampled)} commenters."""
+{_camps_instruction(mode, len(sampled))}"""
 
 
-def _build_reddit_prompt(post: RedditPost) -> str:
+def _camps_instruction(mode: str, n: int) -> str:
+    if mode == "sentiment":
+        return (
+            f"3. For EVERY SINGLE commenter listed above, classify their sentiment as positive, negative, or neutral "
+            f"with a brief reason. Do not skip anyone — analyse all {n} commenters."
+        )
+    return (
+        f"3. If the discussion has a clear split — where commenters are debating opposing viewpoints — identify 2-3 camps "
+        f'with short labels (e.g. "Pro-change", "Anti-change"). If there is no meaningful divide, leave camps empty.\n'
+        f"4. For EVERY SINGLE commenter listed above, classify their sentiment (positive/negative/neutral) and, if camps "
+        f"were identified, assign them to the camp that best matches their view (use the exact camp label, or null if they "
+        f"don't clearly align). Do not skip anyone — analyse all {n} commenters."
+    )
+
+
+def _build_reddit_prompt(post: RedditPost, mode: str = "both") -> str:
     """Build the Gemini analysis prompt from a Reddit post."""
     sampled = sorted(post.comments, key=lambda c: c.score, reverse=True)
     sampled = sampled[: config.MAX_COMMENTS_FOR_ANALYSIS]
@@ -127,17 +142,17 @@ Upvotes: {post.score:,}
 Based on the comments above:
 1. Write a 3-5 sentence summary of what people are saying overall.
 2. Identify 2-5 recurring themes or topics across the comments.
-3. For EVERY SINGLE commenter listed above, classify their sentiment as positive, negative, or neutral with a brief reason. Do not skip anyone — analyse all {len(kept)} commenters."""
+{_camps_instruction(mode, len(kept))}"""
 
 
-def analyse_reddit_post(post: RedditPost) -> AnalysisResult:
+def analyse_reddit_post(post: RedditPost, mode: str = "both") -> AnalysisResult:
     """Send Reddit post comments to Gemini and return structured analysis.
 
     Raises:
         RuntimeError: If Gemini API fails after retries.
     """
     client = genai.Client(api_key=config.GEMINI_API_KEY)
-    prompt = _build_reddit_prompt(post)
+    prompt = _build_reddit_prompt(post, mode)
 
     last_error = None
     for attempt in range(MAX_RETRIES + 1):
@@ -161,14 +176,14 @@ def analyse_reddit_post(post: RedditPost) -> AnalysisResult:
     raise RuntimeError(f"Gemini API failed after {MAX_RETRIES + 1} attempts: {last_error}")
 
 
-def analyse_post(post: IGPost) -> AnalysisResult:
+def analyse_post(post: IGPost, mode: str = "both") -> AnalysisResult:
     """Send post comments to Gemini and return structured analysis.
 
     Raises:
         RuntimeError: If Gemini API fails after retries.
     """
     client = genai.Client(api_key=config.GEMINI_API_KEY)
-    prompt = _build_prompt(post)
+    prompt = _build_prompt(post, mode)
 
     last_error = None
     for attempt in range(MAX_RETRIES + 1):

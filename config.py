@@ -7,7 +7,7 @@ if not GEMINI_API_KEY:
         "Set it in your shell: export GEMINI_API_KEY='your-key'"
     )
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 MAX_COMMENT_CHARS = int(os.getenv("MAX_COMMENT_CHARS", "800000"))
 
 # Max comments to fetch from Instagram — 0 means all (can be slow for viral posts)

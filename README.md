@@ -51,7 +51,7 @@ All options are set via environment variables:
 |---|---|---|---|
 | `GEMINI_API_KEY` | Yes | — | Google Gemini API key |
 | `IG_SESSION_ID` | Yes | — | Instagram session cookie from your browser |
-| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model to use |
+| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Gemini model to use |
 | `MAX_COMMENTS` | No | `500` | Max comments to fetch from Instagram (0 = all) |
 | `MAX_COMMENTS_FOR_ANALYSIS` | No | `100` | Max comments sent to Gemini (top by likes) |
 | `MAX_COMMENT_CHARS` | No | `800000` | Character limit for comment text sent to Gemini |
